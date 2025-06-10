@@ -1,35 +1,54 @@
 #include <Arduino.h>
 #include "motor_controle.h"
 
-MOTOR leftWheel(A_IA, A_IB, 1);
-MOTOR rightWheel(B_IA, B_IB, 0);
+// Default PID parameters, can be tuned
+const float DEFAULT_KP = 1.0f;
+const float DEFAULT_KI = 0.1f;
+const float DEFAULT_KD = 0.002f;
+const float DEFAULT_MIN_PWM = 450.0f; // Corresponds to original left_motor_min/right_motor_min
 
-
-
+MOTOR leftWheel(A_IA, A_IB, true, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD, DEFAULT_MIN_PWM);
+MOTOR rightWheel(B_IA, B_IB, false, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD, DEFAULT_MIN_PWM);
 
 void IRAM_ATTR a_encoder() {
   unsigned long current_time = millis();
   if (current_time - leftWheel.encoder_interrupt_time > debounce_delay) {
-    leftWheel.Enc_count++;
+    leftWheel.CurrentPosition--;
     leftWheel.encoder_interrupt_time = current_time;
   }
 }
 void IRAM_ATTR b_encoder() {
   unsigned long current_time = millis();
   if (current_time - rightWheel.encoder_interrupt_time > debounce_delay) {
-    rightWheel.Enc_count++;
+    rightWheel.CurrentPosition--;
     rightWheel.encoder_interrupt_time = current_time;
   }
 }
 
-MOTOR::MOTOR(int8_t PIN_A, int8_t PIN_B, bool inverted) {
-  this->PIN_A = PIN_A;
-  this->PIN_B = PIN_B;
-  this->inverted = inverted;
-  this->Enc_count = 0;
+MOTOR::MOTOR(int8_t motor_pin_a, int8_t motor_pin_b, bool is_inverted, float p_gain, float i_gain, float d_gain, float min_pwm_val) {
+  this->PIN_A = motor_pin_a;
+  this->PIN_B = motor_pin_b;
+  this->inverted = is_inverted;
+  
+  this->CurrentPosition = 0;
+  this->PreviousPosition = 0;
+  this->current_time_2 = 0;
+  this->previous_time_2 = 0;
+  this->encoder_interrupt_time = 0;
 
-  ledcAttach(PIN_A, 5000, 10);
-  ledcAttach(PIN_B, 5000, 10);
+  this->kp = p_gain;
+  this->ki = i_gain;
+  this->kd = d_gain;
+  this->minPwm = min_pwm_val;
+
+  this->integral = 0.0f;
+  this->previousError = 0.0f;
+  this->targetRpm = 0.0;
+  this->currentRpm = 0.0;
+  this->pwmOutput = 0.0;
+
+  ledcAttach(this->PIN_A, freq, resolution);
+  ledcAttach(this->PIN_B, freq, resolution);
 }
 
 void MOTOR::pwm(int PWM, bool Direction) {
@@ -52,16 +71,57 @@ void MOTOR::pwm(int PWM, bool Direction) {
   }
 }
 
-void MOTOR::Calcular_Velocidade() {
+void MOTOR::calculateCurrentRpm() {
   current_time_2 = millis();
-  CurrentPosition = Enc_count;
-  float delta_time = (current_time_2 - previous_time_2);
-  if (delta_time >= 500) {
-    int delta_position = CurrentPosition - PreviousPosition;
-    this->Velocidade_dv = (delta_position / delta_time) * 60000/8;   
+  // Usa millis() para evitar problemas de overflow com microssegundos
+  long current_encoder_pos = this->CurrentPosition; 
+  unsigned long delta_time_ms = (current_time_2 - previous_time_2);
+
+  if (delta_time_ms >= 50) { // Calcula a RPM a cada 50 ms
+    long delta_position = current_encoder_pos - PreviousPosition;
+    // RPM = (delta_position / pulses_per_revolution) / (delta_time_ms / 1000.0 / 60.0)
+    // RPM = (delta_position * 60000.0) / (pulses_per_revolution * delta_time_ms)
+    if (delta_time_ms > 0) { // Evita divisão por zero
+        this->currentRpm = (static_cast<float>(delta_position) * 60000.0f) / (ENCODER_PULSES_PER_REVOLUTION * delta_time_ms);
+    } else {
+        this->currentRpm = 0; // Or maintain previous if delta_time is too small
+    }
     PreviousPosition = CurrentPosition;
     previous_time_2 = current_time_2;
   }
+}
+
+void MOTOR::calculatePid() {
+    float error = this->targetRpm - this->currentRpm;
+
+    this->integral += error;
+    // Previne o termo integral de crescer demais
+    if (this->ki != 0) {
+        float max_integral_contribution = 1023.0f * 0.4f; // e.g., a integral nao deve contribuir mais que 40% do PWM maximo
+        float max_abs_integral = max_integral_contribution / fabsf(this->ki);
+        if (this->integral > max_abs_integral) this->integral = max_abs_integral;
+        else if (this->integral < -max_abs_integral) this->integral = -max_abs_integral;
+    }
+
+    float derivative = error - this->previousError;
+    this->previousError = error; // Atualiza o erro anterior
+    float pid_sum = (this->kp * error) + (this->ki * this->integral) + (this->kd * derivative);
+
+    if (this->targetRpm == 0) {
+        this->pwmOutput = 0;
+        this->integral = 0; // Reseta o integral quando o alvo é 0
+    } else {
+        if (pid_sum < 1.0f && pid_sum > -1.0f) { // Se o valor do PID for muito pequeno, considere como 0
+            this->pwmOutput = (pid_sum > 0) ? this->minPwm : 0; // Se o pid_sum for positivo, use minPwm, se negativo, use 0
+            this->pwmOutput = 0; // Se o PID for muito pequeno, não deve haver PWM
+        } else {
+            this->pwmOutput = pid_sum + this->minPwm;
+        }
+
+        // O valor do PWM deve estar entre 0 e 1023
+        if (this->pwmOutput > 1023.0f) this->pwmOutput = 1023.0f;
+        else if (this->pwmOutput < 0) this->pwmOutput = 0; // Nao permitir PWM negativo
+    }
 }
 
 // Inicializa Pinos
@@ -74,4 +134,3 @@ void motor_setup() {
   rightWheel.pwm(0, 1);
   
 }
-

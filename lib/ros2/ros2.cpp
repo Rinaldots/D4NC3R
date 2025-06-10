@@ -32,10 +32,10 @@ struct timespec getTime() {
 void ros_setup() {    
     pinMode(LED_PIN, OUTPUT);
 
-    IPAddress agent_ip(192, 168, 1, 123);
+    IPAddress agent_ip(192, 168, 1, 217);
     size_t agent_port = 8888;
-    char ssid[] = "10D";
-    char psk[]= "12345678";
+    char ssid[] = "Apto_2G";
+    char psk[]= "12052000";
     set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
 
     Serial.print("Connecting to WiFi...");
@@ -62,39 +62,10 @@ void ros_setup() {
 
 void ros2_loop() {
 
-    RCCHECK(rclc_executor_spin_some(&executor_motor_sub, 66666666)); // 15 Hz in nanoseconds
+    RCCHECK(rclc_executor_spin_some(&executor_motor_sub, 10000)); 
 
     publish_data();
 
-    leftWheel.Calcular_Velocidade();
-    rightWheel.Calcular_Velocidade();
-    /*Serial.print("Left/ RPM: ");
-    Serial.print(leftWheel.Velocidade_dv);
-    Serial.print(" | Right RPM: ");
-    Serial.print(rightWheel.Velocidade_dv);
     
-    Serial.print("  / Left PWM Value: ");
-    Serial.print(leftWheel.PWM_value);
-    Serial.print(" | Right PWM Value: ");  
-    Serial.println(rightWheel.PWM_value);
-    */
-   
-
-    if(leftWheel.RPM_target <= 0){
-      leftWheel.pwm(0, 1);
-      leftWheel.PWM_value = 0;
-    }
-    else{
-      calculate_pid_left_motor();
-      leftWheel.pwm(leftWheel.PWM_value, 1);
-    }
-    if(rightWheel.RPM_target <= 0){
-      rightWheel.pwm(0, 1);
-      leftWheel.PWM_value = 0;
-    }
-    else{
-      calculate_pid_right_motor();
-      rightWheel.pwm(rightWheel.PWM_value, 1);
-    }
 }
 

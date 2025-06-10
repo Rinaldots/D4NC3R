@@ -27,14 +27,31 @@ void MotorControll_callback(const void* msg_in) {
     float vL = linearVelocity - (angularVelocity * 0.5f);
     float vR = linearVelocity + (angularVelocity * 0.5f);
 
-    leftWheel.RPM_target = vL / (wheel_circumference_ / 60);
-    rightWheel.RPM_target = vR / (wheel_circumference_ / 60);
+    leftWheel.targetRpm = vL / (wheel_circumference_ / 60);
+    rightWheel.targetRpm = vR / (wheel_circumference_ / 60);
 
-    prev_motor_update = millis();   
-  
+    prev_motor_update = millis();
+    leftWheel.calculateCurrentRpm();
+    rightWheel.calculateCurrentRpm();
+
+    if(leftWheel.targetRpm <= 0){
+      leftWheel.pwm(0, 1);
+      leftWheel.pwmOutput = 0;
+    }
+    else{
+      leftWheel.calculatePid();
+      leftWheel.pwm(leftWheel.pwmOutput, 1);
+    }
+    if(rightWheel.targetRpm <= 0){
+      rightWheel.pwm(0, 1);
+      rightWheel.pwmOutput = 0;
+    }
+    else{
+      rightWheel.calculatePid();
+      rightWheel.pwm(rightWheel.pwmOutput, 1);
+    }
   }
-  
-  
+
 }
 
 

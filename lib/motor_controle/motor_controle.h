@@ -13,29 +13,41 @@
 #define EN_B 14
 
 const int freq = 5000;
-const int resolution = 8;
+const int resolution = 10; // PWM resolution (0-1023 for 10-bit)
+const float ENCODER_PULSES_PER_REVOLUTION = 8.0f; // Pulses per revolution for the encoder
 
 // Variáveis de debounce
 const unsigned long debounce_delay = 50; // 50 ms de debounce
 
 
 class MOTOR {
-  public: 
-    float kp = 0.7, ki = 0.2, total_error, proportional_error;
+  public:
+    // PID Parameters
+    float kp, ki, kd;
+    float minPwm; // Minimum PWM value to overcome static friction
+
+    // PID State Variables
+    float integral;
+    float previousError;
+
     int8_t PIN_A, PIN_B;
     bool inverted;
-    volatile long CurrentPosition = 0, PreviousPosition = 0, CurrentTime = 0, PreviousTime = -100;
-    unsigned long current_time_2 = 0, previous_time_2 = 0;
-    volatile int Enc_count = 0;
-    volatile unsigned long encoder_interrupt_time = 0;
-    double RPM_target = 0; 
-    double Velocidade_dv;
-    double PWM_value = 0;
 
-    MOTOR(int8_t PIN_A, int8_t PIN_B, bool inverted); 
+    // Encoder and Speed Calculation Variables
+    volatile long CurrentPosition = 0; // Renamed from Enc_count for consistency in calculateCurrentRpm
+    long PreviousPosition = 0; // Made non-volatile, accessed only in calculateCurrentRpm
+    unsigned long current_time_2 = 0, previous_time_2 = 0;
+    volatile unsigned long encoder_interrupt_time = 0;
+
+    double targetRpm = 0;    // Target RPM for the motor
+    double currentRpm = 0;   // Current calculated RPM of the motor
+    double pwmOutput = 0;    // Calculated PWM output from PID
+
+    MOTOR(int8_t motor_pin_a, int8_t motor_pin_b, bool is_inverted, float p_gain, float i_gain, float d_gain, float min_pwm_val);
     void pwm(int PWM, bool Direction);
     void stop_motor();
-    void Calcular_Velocidade();
+    void calculateCurrentRpm();
+    void calculatePid();
 }; 
 
 extern MOTOR leftWheel;
