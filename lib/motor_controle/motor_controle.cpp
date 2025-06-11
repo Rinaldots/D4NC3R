@@ -2,10 +2,10 @@
 #include "motor_controle.h"
 
 // Default PID parameters, can be tuned
-const float DEFAULT_KP = 1.0f;
-const float DEFAULT_KI = 0.1f;
+const float DEFAULT_KP = 2.0f;
+const float DEFAULT_KI = 0.4f;
 const float DEFAULT_KD = 0.002f;
-const float DEFAULT_MIN_PWM = 450.0f; // Corresponds to original left_motor_min/right_motor_min
+const float DEFAULT_MIN_PWM = 520.0f; // Corresponds to original left_motor_min/right_motor_min
 
 MOTOR leftWheel(A_IA, A_IB, true, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD, DEFAULT_MIN_PWM);
 MOTOR rightWheel(B_IA, B_IB, false, DEFAULT_KP, DEFAULT_KI, DEFAULT_KD, DEFAULT_MIN_PWM);
@@ -73,18 +73,16 @@ void MOTOR::pwm(int PWM, bool Direction) {
 
 void MOTOR::calculateCurrentRpm() {
   current_time_2 = millis();
-  // Usa millis() para evitar problemas de overflow com microssegundos
   long current_encoder_pos = this->CurrentPosition; 
   unsigned long delta_time_ms = (current_time_2 - previous_time_2);
 
   if (delta_time_ms >= 50) { // Calcula a RPM a cada 50 ms
-    long delta_position = current_encoder_pos - PreviousPosition;
-    // RPM = (delta_position / pulses_per_revolution) / (delta_time_ms / 1000.0 / 60.0)
-    // RPM = (delta_position * 60000.0) / (pulses_per_revolution * delta_time_ms)
+    long delta_position = abs(current_encoder_pos - PreviousPosition);
+
     if (delta_time_ms > 0) { // Evita divisão por zero
         this->currentRpm = (static_cast<float>(delta_position) * 60000.0f) / (ENCODER_PULSES_PER_REVOLUTION * delta_time_ms);
     } else {
-        this->currentRpm = 0; // Or maintain previous if delta_time is too small
+        this->currentRpm = 0; 
     }
     PreviousPosition = CurrentPosition;
     previous_time_2 = current_time_2;
@@ -92,36 +90,35 @@ void MOTOR::calculateCurrentRpm() {
 }
 
 void MOTOR::calculatePid() {
+    // If targetRpm is 0, reset PID state and output.
+    // This ensures that when the motor is asked to stop, PID terms don't linger.
+    if (this->targetRpm == 0) {
+        this->pwmOutput = 0;
+        this->integral = 0.0f;
+        this->previousError = 0.0f;
+        return;
+    }
+
     float error = this->targetRpm - this->currentRpm;
 
     this->integral += error;
     // Previne o termo integral de crescer demais
     if (this->ki != 0) {
         float max_integral_contribution = 1023.0f * 0.4f; // e.g., a integral nao deve contribuir mais que 40% do PWM maximo
-        float max_abs_integral = max_integral_contribution / fabsf(this->ki);
+        float max_abs_integral = fabsf(this->ki) > 1e-6 ? (max_integral_contribution / fabsf(this->ki)) : 0.0f;
         if (this->integral > max_abs_integral) this->integral = max_abs_integral;
         else if (this->integral < -max_abs_integral) this->integral = -max_abs_integral;
     }
 
     float derivative = error - this->previousError;
     this->previousError = error; // Atualiza o erro anterior
-    float pid_sum = (this->kp * error) + (this->ki * this->integral) + (this->kd * derivative);
+    float pid_calculated_value = (this->kp * error) + (this->ki * this->integral) + (this->kd * derivative);
 
-    if (this->targetRpm == 0) {
-        this->pwmOutput = 0;
-        this->integral = 0; // Reseta o integral quando o alvo é 0
-    } else {
-        if (pid_sum < 1.0f && pid_sum > -1.0f) { // Se o valor do PID for muito pequeno, considere como 0
-            this->pwmOutput = (pid_sum > 0) ? this->minPwm : 0; // Se o pid_sum for positivo, use minPwm, se negativo, use 0
-            this->pwmOutput = 0; // Se o PID for muito pequeno, não deve haver PWM
-        } else {
-            this->pwmOutput = pid_sum + this->minPwm;
-        }
+    this->pwmOutput = this->minPwm + pid_calculated_value;
 
-        // O valor do PWM deve estar entre 0 e 1023
-        if (this->pwmOutput > 1023.0f) this->pwmOutput = 1023.0f;
-        else if (this->pwmOutput < 0) this->pwmOutput = 0; // Nao permitir PWM negativo
-    }
+    // Clamp PWM output to the valid range [0, 1023]
+    if (this->pwmOutput > 1023.0f) this->pwmOutput = 1023.0f;
+    else if (this->pwmOutput < 0) this->pwmOutput = 0; // Ensure PWM is not negative
 }
 
 // Inicializa Pinos

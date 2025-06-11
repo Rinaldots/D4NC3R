@@ -14,7 +14,7 @@
 
 const int freq = 5000;
 const int resolution = 10; // PWM resolution (0-1023 for 10-bit)
-const float ENCODER_PULSES_PER_REVOLUTION = 8.0f; // Pulses per revolution for the encoder
+const float ENCODER_PULSES_PER_REVOLUTION = 16.0f; // Pulses per revolution for the encoder
 
 // Variáveis de debounce
 const unsigned long debounce_delay = 50; // 50 ms de debounce
@@ -36,7 +36,7 @@ class MOTOR {
     // Encoder and Speed Calculation Variables
     volatile long CurrentPosition = 0; // Renamed from Enc_count for consistency in calculateCurrentRpm
     long PreviousPosition = 0; // Made non-volatile, accessed only in calculateCurrentRpm
-    unsigned long current_time_2 = 0, previous_time_2 = 0;
+    unsigned long current_time_2 = 0, previous_time_2 = 0, current_time_3 = 0, previous_time_3 = 0;
     volatile unsigned long encoder_interrupt_time = 0;
 
     double targetRpm = 0;    // Target RPM for the motor

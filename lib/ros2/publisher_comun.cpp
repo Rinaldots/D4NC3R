@@ -7,7 +7,7 @@ unsigned long prev_encoders_update = 0; // Para o novo publicador de encoders
 
 // Defina as taxas de publicação desejadas em Hz
 #define MPU_PUBLISH_RATE_HZ 15
-#define ENCODERS_PUBLISH_RATE_HZ 30
+#define ENCODERS_PUBLISH_RATE_HZ 50
 
 // Calcule os intervalos de publicação em milissegundos
 const unsigned long MPU_PUBLISH_INTERVAL_MS = 1000UL / MPU_PUBLISH_RATE_HZ;
@@ -60,14 +60,8 @@ void mpu_publisher_setup() {
 }
 
 void publish_mpu6050() {
-  Serial.println("Antes de get_mpu6050_value");
-  unsigned long start_get_mpu_time = millis();
+  
   MPU6050Values mpu_value = get_mpu6050_value();
-  unsigned long get_mpu_duration = millis() - start_get_mpu_time;
-  Serial.print("get_mpu6050_value levou: ");
-  Serial.print(get_mpu_duration);
-  Serial.println(" ms");
-
   struct timespec time_stamp = getTime();
   mpu6050_msg.header.frame_id = micro_ros_string_utilities_set(mpu6050_msg.header.frame_id, "mpu_link");
   mpu6050_msg.header.stamp.sec = time_stamp.tv_sec;
@@ -79,19 +73,13 @@ void publish_mpu6050() {
   mpu6050_msg.angular_velocity.x = mpu_value.gyro_x;
   mpu6050_msg.angular_velocity.y = mpu_value.gyro_y;
   mpu6050_msg.angular_velocity.z = mpu_value.gyro_z;
-  Serial.println("Antes de rcl_publish para MPU6050");
-  unsigned long start_publish_time = millis();
+  
   RCSOFTCHECK(rcl_publish(&publisher_mpu6050, &mpu6050_msg, NULL));
-  unsigned long publish_duration = millis() - start_publish_time;
-  Serial.print("rcl_publish MPU6050 levou: ");
-  Serial.print(publish_duration);
-  Serial.println(" ms");
+  
 }
 
 void publish_encoders() {
   struct timespec time_stamp = getTime();
-  Serial.println("Antes de rcl_publish para encoders");
-  unsigned long start_publish_time = millis();
   // Lê os valores atuais dos encoders (são volatile long)
   int32_t left_ticks = leftWheel.CurrentPosition;
   int32_t right_ticks = rightWheel.CurrentPosition;
@@ -100,16 +88,7 @@ void publish_encoders() {
   encoders_msg.data.data[1] = right_ticks;
   encoders_msg.data.size = 2; // Garante que o tamanho está correto
 
-  // O timestamp do header não é padrão para Int32MultiArray, mas se precisar,
-  // você teria que adicionar um campo de header à sua definição de mensagem customizada
-  // ou publicar como uma mensagem que tenha header.
-  // Para std_msgs/Int32MultiArray, não há header.
-
   RCSOFTCHECK(rcl_publish(&encoders_publisher, &encoders_msg, NULL));
-  unsigned long publish_duration = millis() - start_publish_time;
-  Serial.print("rcl_publish encoders levou: ");
-  Serial.print(publish_duration);
-  Serial.println(" ms");
 }
 
 void publish_data() {

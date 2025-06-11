@@ -7,7 +7,7 @@ rclc_support_t support;
 rcl_allocator_t allocator;
 unsigned long long time_offset = 0;
 float wheels_y_distance_ = 0.20;
-float wheel_radius = 0.035;
+float wheel_radius = 0.034;
 float wheel_circumference_ = 2 * 3.14 * wheel_radius;
 rcl_timer_t timer;
 rclc_executor_t executor_pub;
@@ -32,10 +32,10 @@ struct timespec getTime() {
 void ros_setup() {    
     pinMode(LED_PIN, OUTPUT);
 
-    IPAddress agent_ip(192, 168, 1, 217);
+    IPAddress agent_ip(10, 0, 0, 85);
     size_t agent_port = 8888;
-    char ssid[] = "Apto_2G";
-    char psk[]= "12052000";
+    char ssid[] = "Team";
+    char psk[]= "12345678";
     set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
 
     Serial.print("Connecting to WiFi...");
@@ -62,7 +62,7 @@ void ros_setup() {
 
 void ros2_loop() {
 
-    RCCHECK(rclc_executor_spin_some(&executor_motor_sub, 10000)); 
+    RCCHECK(rclc_executor_spin_one_period(&executor_motor_sub, 10000)); 
 
     publish_data();
 

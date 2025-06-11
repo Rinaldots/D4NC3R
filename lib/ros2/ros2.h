@@ -17,7 +17,6 @@
 #define TOSTRING(x) STRINGIFY(x)
 #define CONCAT(a, b, c) a b c
 
-extern float wheels_y_distance_;
 extern float wheel_radius;
 extern float wheel_circumference_;
 
@@ -33,6 +32,7 @@ extern float wheel_circumference_;
 #include <geometry_msgs/msg/vector3.h>
 #include <sensor_msgs/msg/imu.h>
 #include <std_msgs/msg/multi_array_dimension.h>
+#include <std_msgs/msg/float32_multi_array.h> // Adicionado para os parâmetros PID
 #include <micro_ros_utilities/string_utilities.h>
 
 // Topicos
@@ -43,6 +43,8 @@ extern float wheel_circumference_;
 #define TOPIC_MPU6050 CONCAT(NAMESPACE,"/imu", "")
 #define TOPIC_MOTOR CONCAT(NAMESPACE,"/cmd_vel", "")
 #define TOPIC_ENCODERS CONCAT(NAMESPACE, "/encoders", "") // Novo tópico para os dados dos encoders
+#define TOPIC_PID_LEFT CONCAT(NAMESPACE, "/pid_params/left", "") // Tópico para PID do motor esquerdo
+#define TOPIC_PID_RIGHT CONCAT(NAMESPACE, "/pid_params/right", "") // Tópico para PID do motor direito
 // #define TOPIC_ODOM CONCAT("micro_ros", "","/odom/unfiltered") // Removido
 
 
@@ -51,6 +53,8 @@ extern rclc_support_t support;
 extern rcl_allocator_t allocator;
 
 extern rcl_subscription_t subscriber_motor;
+extern rcl_subscription_t subscriber_pid_left; // Subscriber para PID esquerdo
+extern rcl_subscription_t subscriber_pid_right; // Subscriber para PID direito
 
 
 //Publisher declaration
@@ -63,6 +67,9 @@ extern std_msgs__msg__Int32 msg_led;
 extern std_msgs__msg__Int8 msg_display;
 extern std_msgs__msg__Int32MultiArray encoders_msg; // Nova mensagem para os encoders
 extern sensor_msgs__msg__Imu mpu6050_msg;
+extern std_msgs__msg__Float32MultiArray msg_pid_left; // Mensagem para PID esquerdo
+extern std_msgs__msg__Float32MultiArray msg_pid_right; // Mensagem para PID direito
+extern geometry_msgs__msg__Twist msg_motor;
 
 // Declare the shared functions
 void ros_setup();
@@ -87,6 +94,10 @@ void MotorControll_callback(const void *msgin);
 
 void publisher_setup();
 
+// Funções para subscribers de PID
+void pid_params_subscribers_setup();
+void pid_left_callback(const void *msgin);
+void pid_right_callback(const void *msgin);
 
 // Funções de sincronização de tempo
 void syncTime();
